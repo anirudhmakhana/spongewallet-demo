@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "ethskills": {
+      "source": "austintgriffith/ethskills",
+      "sourceType": "github",
+      "computedHash": "3b66558b0bb2e51802a8112bb5bd94412e075dfdc66b441ad95764a94352c10e"
+    }
+  }
+}
