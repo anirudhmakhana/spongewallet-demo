@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { authenticateBearer } from '../services/authService'
 import { createPolicy, getActivePolicy } from '../services/policyService'
+import { getSmartAccountAddress } from '../services/smartAccountService'
 import { provisionWallet } from '../services/turnkeyService'
 import { createApiKey, getWallet, storeWallet } from '../services/walletService'
 
@@ -24,7 +25,7 @@ function buildWalletResponse(walletId: string) {
 
   return {
     walletId: wallet.id,
-    address: wallet.address,
+    address: wallet.smartAccountAddress,
     policy: policy
       ? {
           id: policy.id,
@@ -75,8 +76,12 @@ router.post('/wallets', async (req: Request, res: Response): Promise<void> => {
     }
 
     const turnkeyWallet = await provisionWallet(name)
+    const smartAccountAddress = await getSmartAccountAddress(
+      turnkeyWallet.ownerAddress as `0x${string}`
+    )
     const walletId = storeWallet(
-      turnkeyWallet.address,
+      turnkeyWallet.ownerAddress,
+      smartAccountAddress,
       turnkeyWallet.turnkeyWalletId,
       turnkeyWallet.turnkeyAccountId
     )
@@ -84,7 +89,7 @@ router.post('/wallets', async (req: Request, res: Response): Promise<void> => {
     createPolicy(walletId, expiresAt, maxTransactions, maxAmountPerTxUsdc, allowedRecipients)
     const apiKey = await createApiKey(walletId)
 
-    res.status(201).json({ walletId, address: turnkeyWallet.address, apiKey })
+    res.status(201).json({ walletId, address: smartAccountAddress, apiKey })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create wallet'
     res.status(500).json({ error: message })

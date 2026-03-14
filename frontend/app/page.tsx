@@ -49,7 +49,7 @@ export default function Home() {
         <div>
           <h1 className="text-5xl font-bold mb-4">SpongeWallet</h1>
           <p className="text-xl text-gray-400 mb-8">
-            Give your AI agent a gasless USDC wallet on Base Sepolia — with enforced spending limits.
+            Give your AI agent a sponsored smart-account USDC wallet on Base Sepolia, with enforced spending limits.
           </p>
 
           <ul className="space-y-3 mb-10 text-gray-300">
@@ -59,7 +59,7 @@ export default function Home() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-gray-500 mt-1">•</span>
-              <span>Gasless sends — Turnkey signs while Gelato sponsors gas</span>
+              <span>Sponsored smart-account sends — Turnkey controls the owner while Pimlico sponsors gas</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-gray-500 mt-1">•</span>

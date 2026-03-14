@@ -3,7 +3,7 @@ import { sendUsdcPayment } from '../../services/paymentService'
 
 export const sendPaymentTool = {
   name: 'send_payment',
-  description: 'Send gasless USDC to an address on Base Sepolia, subject to policy limits',
+  description: 'Send sponsored USDC from the smart account to an allowlisted address on Base Sepolia',
   inputSchema: {
     type: 'object' as const,
     properties: {

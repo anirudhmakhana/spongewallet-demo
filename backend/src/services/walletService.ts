@@ -5,14 +5,16 @@ import { db } from '../db/schema'
 
 export interface WalletRow {
   id: string
-  address: string
+  ownerAddress: string
+  smartAccountAddress: string
   turnkeyWalletId: string
   turnkeyAccountId: string
   createdAt: number
 }
 
 export function storeWallet(
-  address: string,
+  ownerAddress: string,
+  smartAccountAddress: string,
   turnkeyWalletId: string,
   turnkeyAccountId: string
 ): string {
@@ -20,9 +22,9 @@ export function storeWallet(
   const createdAt = Date.now()
 
   const stmt = db.prepare(
-    'INSERT INTO wallets (id, address, turnkeyWalletId, turnkeyAccountId, createdAt) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO wallets (id, ownerAddress, smartAccountAddress, turnkeyWalletId, turnkeyAccountId, createdAt) VALUES (?, ?, ?, ?, ?, ?)'
   )
-  stmt.run(walletId, address, turnkeyWalletId, turnkeyAccountId, createdAt)
+  stmt.run(walletId, ownerAddress, smartAccountAddress, turnkeyWalletId, turnkeyAccountId, createdAt)
 
   return walletId
 }

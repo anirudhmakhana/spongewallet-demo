@@ -2,7 +2,7 @@ import { getTransactionHistory } from '../../services/policyService'
 
 export const getTransactionHistoryTool = {
   name: 'get_transaction_history',
-  description: 'Get the USDC transaction history for the managed wallet',
+  description: 'Get the sponsored smart-account USDC transaction history',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -18,7 +18,7 @@ export const getTransactionHistoryTool = {
 export async function getTransactionHistoryHandler(
   walletId: string,
   args: { limit?: number }
-): Promise<{ items: { txHash: string; toAddress: string; amountUsdc: string; sentAt: number; explorerUrl: string }[] }> {
+): Promise<{ items: { userOpHash: string; txHash: string | null; toAddress: string; amountUsdc: string; status: string; sentAt: number; explorerUrl: string | null }[] }> {
   const limit = args.limit ?? 10
   return {
     items: getTransactionHistory(walletId, limit),

@@ -79,7 +79,7 @@ export default function SetupPage({ params }: { params: Promise<{ walletId: stri
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">SpongeWallet Setup</h1>
-          <p className="text-gray-400 mt-2">Your gasless USDC agent wallet is ready</p>
+          <p className="text-gray-400 mt-2">Your sponsored smart-account USDC wallet is ready</p>
         </div>
 
         {/* Yellow warning banner */}
@@ -181,8 +181,8 @@ export default function SetupPage({ params }: { params: Promise<{ walletId: stri
                 View on Basescan →
               </a>
               <div className="text-sm text-gray-400 space-y-1">
-                <p>Deposit Base Sepolia USDC to this address.</p>
-                <p>The wallet does not need ETH. Gelato sponsors gas for transfers.</p>
+                <p>Deposit Base Sepolia USDC to this smart account address.</p>
+                <p>The wallet does not need ETH. Pimlico sponsors user operations for transfers.</p>
               </div>
             </CardContent>
           </Card>

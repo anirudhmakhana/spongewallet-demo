@@ -21,19 +21,25 @@ interface AllowlistEntry {
   address: string
 }
 
-export interface AuthorizationRow {
+interface TransactionRow {
   id: string
   walletId: string
-  nonce: string
+  userOpHash: string
+  txHash: string | null
   toAddress: string
   amountUsdc: string
-  validAfter: number
-  validBefore: number
-  gelatoTaskId: string | null
   status: string
+  sentAt: number
+}
+
+export interface TransactionHistoryItem {
+  userOpHash: string
   txHash: string | null
-  createdAt: number
-  updatedAt: number
+  toAddress: string
+  amountUsdc: string
+  status: string
+  sentAt: number
+  explorerUrl: string | null
 }
 
 export function createPolicy(
@@ -127,7 +133,7 @@ export async function validatePaymentRequest(
     }
   }
 
-  const balance = await getUsdcBalance(wallet.address as `0x${string}`)
+  const balance = await getUsdcBalance(wallet.smartAccountAddress as `0x${string}`)
   if (balance < requestedAmount) {
     return {
       valid: false,
@@ -146,95 +152,58 @@ export function decrementRemainingTransactions(policyId: string): number {
   return result?.remainingTransactions ?? 0
 }
 
-export function createAuthorizationRecord(input: {
+export function createTransactionRecord(input: {
   walletId: string
-  nonce: string
+  userOpHash: string
   toAddress: string
   amountUsdc: string
-  validAfter: number
-  validBefore: number
   status: string
 }): string {
-  const id = uuidv4()
-  const timestamp = Date.now()
+  const transactionId = uuidv4()
+  const sentAt = Date.now()
   const stmt = db.prepare(
-    'INSERT INTO authorizations (id, walletId, nonce, toAddress, amountUsdc, validAfter, validBefore, gelatoTaskId, status, txHash, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO transactions (id, walletId, userOpHash, txHash, toAddress, amountUsdc, status, sentAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   )
 
   stmt.run(
-    id,
+    transactionId,
     input.walletId,
-    input.nonce,
+    input.userOpHash,
+    null,
     input.toAddress,
     input.amountUsdc,
-    input.validAfter,
-    input.validBefore,
-    null,
     input.status,
-    null,
-    timestamp,
-    timestamp
+    sentAt
   )
 
-  return id
+  return transactionId
 }
 
-export function updateAuthorizationAfterSubmission(
-  authorizationId: string,
-  gelatoTaskId: string,
-  status: string
-): void {
-  const stmt = db.prepare(
-    'UPDATE authorizations SET gelatoTaskId = ?, status = ?, updatedAt = ? WHERE id = ?'
-  )
-  stmt.run(gelatoTaskId, status, Date.now(), authorizationId)
-}
-
-export function updateAuthorizationFinalState(
-  authorizationId: string,
+export function updateTransactionFinalState(
+  transactionId: string,
   status: string,
   txHash?: string
 ): void {
-  const stmt = db.prepare(
-    'UPDATE authorizations SET status = ?, txHash = ?, updatedAt = ? WHERE id = ?'
-  )
-  stmt.run(status, txHash || null, Date.now(), authorizationId)
-}
-
-export function recordTransaction(
-  walletId: string,
-  txHash: string,
-  toAddress: string,
-  amountUsdc: string
-): string {
-  const txId = uuidv4()
-  const sentAt = Date.now()
-  const stmt = db.prepare(
-    'INSERT INTO transactions (id, walletId, txHash, toAddress, amountUsdc, sentAt) VALUES (?, ?, ?, ?, ?, ?)'
-  )
-  stmt.run(txId, walletId, txHash, toAddress, amountUsdc, sentAt)
-  return txId
+  const stmt = db.prepare('UPDATE transactions SET status = ?, txHash = ? WHERE id = ?')
+  stmt.run(status, txHash || null, transactionId)
 }
 
 export function getTransactionHistory(
   walletId: string,
   limit: number = 10
-): { txHash: string; toAddress: string; amountUsdc: string; sentAt: number; explorerUrl: string }[] {
+): TransactionHistoryItem[] {
   const stmt = db.prepare(
     'SELECT * FROM transactions WHERE walletId = ? ORDER BY sentAt DESC LIMIT ?'
   )
-  const rows = stmt.all(walletId, limit) as {
-    txHash: string
-    toAddress: string
-    amountUsdc: string
-    sentAt: number
-  }[]
+  const rows = stmt.all(walletId, limit) as TransactionRow[]
 
   return rows.map((row) => ({
+    userOpHash: row.userOpHash,
     txHash: row.txHash,
     toAddress: row.toAddress,
     amountUsdc: row.amountUsdc,
+    status: row.status,
     sentAt: row.sentAt,
-    explorerUrl: `https://sepolia.basescan.org/tx/${row.txHash}`,
+    explorerUrl: row.txHash ? `https://sepolia.basescan.org/tx/${row.txHash}` : null,
   }))
 }

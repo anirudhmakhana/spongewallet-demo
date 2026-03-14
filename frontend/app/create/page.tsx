@@ -94,7 +94,7 @@ export default function CreatePage() {
         <CardHeader>
           <CardTitle className="text-white">Create Agent Wallet</CardTitle>
           <CardDescription className="text-gray-400">
-            Generate a gasless USDC wallet on Base Sepolia with server-enforced limits
+            Generate a sponsored smart-account USDC wallet on Base Sepolia with server-enforced limits
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">

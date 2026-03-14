@@ -25,7 +25,12 @@ describe('Wallet Service', () => {
 
   it('stores turnkey-backed wallet metadata', async () => {
     const { storeWallet } = await import('../services/walletService')
-    const walletId = storeWallet('0x1234567890123456789012345678901234567890', 'tk-wallet', 'tk-account')
+    const walletId = storeWallet(
+      '0x1111111111111111111111111111111111111111',
+      '0x2222222222222222222222222222222222222222',
+      'tk-wallet',
+      'tk-account'
+    )
 
     expect(walletId).toBeTruthy()
     expect(runMock).toHaveBeenCalled()
@@ -34,7 +39,8 @@ describe('Wallet Service', () => {
   it('returns stored wallet rows', async () => {
     getMock.mockReturnValueOnce({
       id: 'wallet-1',
-      address: '0x1234567890123456789012345678901234567890',
+      ownerAddress: '0x1111111111111111111111111111111111111111',
+      smartAccountAddress: '0x2222222222222222222222222222222222222222',
       turnkeyWalletId: 'tk-wallet',
       turnkeyAccountId: 'tk-account',
       createdAt: Date.now(),
@@ -45,6 +51,7 @@ describe('Wallet Service', () => {
 
     expect(wallet?.turnkeyWalletId).toBe('tk-wallet')
     expect(wallet?.turnkeyAccountId).toBe('tk-account')
+    expect(wallet?.smartAccountAddress).toBe('0x2222222222222222222222222222222222222222')
   })
 
   it('creates bcrypt-protected API keys with the wallet id prefix', async () => {

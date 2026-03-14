@@ -51,10 +51,10 @@ router.get('/balance', async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    const balance = await getUsdcBalance(wallet.address as `0x${string}`)
+    const balance = await getUsdcBalance(wallet.smartAccountAddress as `0x${string}`)
 
     res.json({
-      address: wallet.address,
+      address: wallet.smartAccountAddress,
       chain: 'base-sepolia',
       symbol: 'USDC',
       balanceUsdc: formatUnits(balance, config.usdcDecimals),

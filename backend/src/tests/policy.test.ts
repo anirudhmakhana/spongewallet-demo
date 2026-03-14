@@ -72,7 +72,8 @@ describe('Policy Validation', () => {
     await setupMocks({
       wallet: {
         id: 'wallet-1',
-        address: '0x1234567890123456789012345678901234567890',
+        ownerAddress: '0x1234567890123456789012345678901234567890',
+        smartAccountAddress: '0x9999999999999999999999999999999999999999',
         turnkeyWalletId: 'tk-wallet',
         turnkeyAccountId: 'tk-account',
         createdAt: Date.now(),
@@ -107,7 +108,8 @@ describe('Policy Validation', () => {
     await setupMocks({
       wallet: {
         id: 'wallet-1',
-        address: '0x1234567890123456789012345678901234567890',
+        ownerAddress: '0x1234567890123456789012345678901234567890',
+        smartAccountAddress: '0x9999999999999999999999999999999999999999',
         turnkeyWalletId: 'tk-wallet',
         turnkeyAccountId: 'tk-account',
         createdAt: Date.now(),
@@ -142,7 +144,8 @@ describe('Policy Validation', () => {
     await setupMocks({
       wallet: {
         id: 'wallet-1',
-        address: '0x1234567890123456789012345678901234567890',
+        ownerAddress: '0x1234567890123456789012345678901234567890',
+        smartAccountAddress: '0x9999999999999999999999999999999999999999',
         turnkeyWalletId: 'tk-wallet',
         turnkeyAccountId: 'tk-account',
         createdAt: Date.now(),
@@ -177,7 +180,8 @@ describe('Policy Validation', () => {
     await setupMocks({
       wallet: {
         id: 'wallet-1',
-        address: '0x1234567890123456789012345678901234567890',
+        ownerAddress: '0x1234567890123456789012345678901234567890',
+        smartAccountAddress: '0x9999999999999999999999999999999999999999',
         turnkeyWalletId: 'tk-wallet',
         turnkeyAccountId: 'tk-account',
         createdAt: Date.now(),
@@ -212,7 +216,8 @@ describe('Policy Validation', () => {
     await setupMocks({
       wallet: {
         id: 'wallet-1',
-        address: '0x1234567890123456789012345678901234567890',
+        ownerAddress: '0x1234567890123456789012345678901234567890',
+        smartAccountAddress: '0x9999999999999999999999999999999999999999',
         turnkeyWalletId: 'tk-wallet',
         turnkeyAccountId: 'tk-account',
         createdAt: Date.now(),
@@ -247,7 +252,8 @@ describe('Policy Validation', () => {
     await setupMocks({
       wallet: {
         id: 'wallet-1',
-        address: '0x1234567890123456789012345678901234567890',
+        ownerAddress: '0x1234567890123456789012345678901234567890',
+        smartAccountAddress: '0x9999999999999999999999999999999999999999',
         turnkeyWalletId: 'tk-wallet',
         turnkeyAccountId: 'tk-account',
         createdAt: Date.now(),

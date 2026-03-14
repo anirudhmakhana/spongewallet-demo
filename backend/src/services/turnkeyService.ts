@@ -1,6 +1,6 @@
 import { Turnkey, defaultEthereumAccountAtIndex } from '@turnkey/sdk-server'
-import { signTypedData as turnkeySignTypedData } from '@turnkey/viem'
-import { getAddress, Hex, TypedData } from 'viem'
+import { createAccount as turnkeyCreateAccount } from '@turnkey/viem'
+import { getAddress, LocalAccount } from 'viem'
 import { config } from '../config'
 
 const turnkey = new Turnkey({
@@ -97,7 +97,7 @@ function findEthereumAccount(
 
 export async function provisionWallet(
   walletName?: string
-): Promise<{ turnkeyWalletId: string; turnkeyAccountId: string; address: string }> {
+): Promise<{ turnkeyWalletId: string; turnkeyAccountId: string; ownerAddress: string }> {
   const createWalletResponse = await turnkeyClient.createWallet({
     organizationId: config.turnkeyOrganizationId,
     walletName: walletName || `SpongeWallet ${Date.now()}`,
@@ -122,18 +122,15 @@ export async function provisionWallet(
   return {
     turnkeyWalletId,
     turnkeyAccountId: account.turnkeyAccountId,
-    address: account.address,
+    ownerAddress: account.address,
   }
 }
 
-export async function signUsdcAuthorization(
-  signWith: string,
-  typedData: TypedData | { [key: string]: unknown }
-): Promise<Hex> {
-  return turnkeySignTypedData(
-    turnkeyClient,
-    typedData,
-    config.turnkeyOrganizationId,
-    signWith
-  )
+export async function getTurnkeyOwnerAccount(ownerAddress: string): Promise<LocalAccount> {
+  return turnkeyCreateAccount({
+    client: turnkeyClient,
+    organizationId: config.turnkeyOrganizationId,
+    signWith: ownerAddress,
+    ethereumAddress: ownerAddress,
+  })
 }

@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import path from 'path'
 
 const DB_PATH = path.join(__dirname, '../../spongewallet.db')
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 export const db = new Database(DB_PATH)
 
@@ -19,7 +19,8 @@ function recreateSchema(): void {
 
     CREATE TABLE wallets (
       id TEXT PRIMARY KEY,
-      address TEXT NOT NULL,
+      ownerAddress TEXT NOT NULL,
+      smartAccountAddress TEXT NOT NULL,
       turnkeyWalletId TEXT NOT NULL,
       turnkeyAccountId TEXT NOT NULL,
       createdAt INTEGER NOT NULL
@@ -51,33 +52,19 @@ function recreateSchema(): void {
       FOREIGN KEY(policyId) REFERENCES policies(id)
     );
 
-    CREATE TABLE authorizations (
-      id TEXT PRIMARY KEY,
-      walletId TEXT NOT NULL,
-      nonce TEXT NOT NULL,
-      toAddress TEXT NOT NULL,
-      amountUsdc TEXT NOT NULL,
-      validAfter INTEGER NOT NULL,
-      validBefore INTEGER NOT NULL,
-      gelatoTaskId TEXT,
-      status TEXT NOT NULL,
-      txHash TEXT,
-      createdAt INTEGER NOT NULL,
-      updatedAt INTEGER NOT NULL,
-      FOREIGN KEY(walletId) REFERENCES wallets(id)
-    );
-
     CREATE TABLE transactions (
       id TEXT PRIMARY KEY,
       walletId TEXT NOT NULL,
-      txHash TEXT NOT NULL,
+      userOpHash TEXT NOT NULL,
+      txHash TEXT,
       toAddress TEXT NOT NULL,
       amountUsdc TEXT NOT NULL,
+      status TEXT NOT NULL,
       sentAt INTEGER NOT NULL,
       FOREIGN KEY(walletId) REFERENCES wallets(id)
     );
 
-    PRAGMA user_version = 2;
+    PRAGMA user_version = 3;
     PRAGMA foreign_keys = ON;
   `)
 }

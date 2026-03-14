@@ -1,11 +1,10 @@
 import {
   createPublicClient,
   encodeFunctionData,
-  Hex,
   http,
-  parseSignature,
   parseUnits,
-  TypedData,
+  webSocket,
+  type Hex,
 } from 'viem'
 import { baseSepolia, config } from '../config'
 
@@ -18,36 +17,27 @@ export const usdcAbi = [
     outputs: [{ name: '', type: 'uint256' }],
   },
   {
+    name: 'transfer',
     type: 'function',
     stateMutability: 'nonpayable',
-    name: 'transferWithAuthorization',
     inputs: [
-      { name: 'from', type: 'address' },
       { name: 'to', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'validAfter', type: 'uint256' },
-      { name: 'validBefore', type: 'uint256' },
-      { name: 'nonce', type: 'bytes32' },
-      { name: 'v', type: 'uint8' },
-      { name: 'r', type: 'bytes32' },
-      { name: 's', type: 'bytes32' },
+      { name: 'amount', type: 'uint256' },
     ],
-    outputs: [],
+    outputs: [{ name: '', type: 'bool' }],
   },
 ] as const
 
-const publicClient = createPublicClient({
+export const publicClient = createPublicClient({
   chain: baseSepolia,
-  transport: http(config.baseSepoliaRpcUrl),
+  transport: config.baseSepoliaRpcUrl.startsWith('ws')
+    ? webSocket(config.baseSepoliaRpcUrl)
+    : http(config.baseSepoliaRpcUrl),
 })
 
-export interface TransferAuthorizationRequest {
-  from: `0x${string}`
+export interface TransferRequest {
   to: `0x${string}`
   amountUsdc: string
-  validAfter: number
-  validBefore: number
-  nonce: Hex
 }
 
 export function parseUsdcAmount(amountUsdc: string): bigint {
@@ -63,63 +53,12 @@ export async function getUsdcBalance(address: `0x${string}`): Promise<bigint> {
   })
 }
 
-export function buildTransferAuthorizationTypedData(
-  request: TransferAuthorizationRequest
-): TypedData | { [key: string]: unknown } {
-  return {
-    domain: {
-      name: config.usdcName,
-      version: config.usdcVersion,
-      chainId: baseSepolia.id,
-      verifyingContract: config.usdcBaseSepoliaAddress as `0x${string}`,
-    },
-    types: {
-      EIP712Domain: [
-        { name: 'name', type: 'string' },
-        { name: 'version', type: 'string' },
-        { name: 'chainId', type: 'uint256' },
-        { name: 'verifyingContract', type: 'address' },
-      ],
-      TransferWithAuthorization: [
-        { name: 'from', type: 'address' },
-        { name: 'to', type: 'address' },
-        { name: 'value', type: 'uint256' },
-        { name: 'validAfter', type: 'uint256' },
-        { name: 'validBefore', type: 'uint256' },
-        { name: 'nonce', type: 'bytes32' },
-      ],
-    },
-    primaryType: 'TransferWithAuthorization',
-    message: {
-      from: request.from,
-      to: request.to,
-      value: parseUsdcAmount(request.amountUsdc),
-      validAfter: BigInt(request.validAfter),
-      validBefore: BigInt(request.validBefore),
-      nonce: request.nonce,
-    },
-  }
-}
-
-export function encodeTransferWithAuthorizationCall(
-  request: TransferAuthorizationRequest,
-  signature: Hex
+export function encodeUsdcTransferCall(
+  request: TransferRequest
 ): Hex {
-  const parsed = parseSignature(signature)
-
   return encodeFunctionData({
     abi: usdcAbi,
-    functionName: 'transferWithAuthorization',
-    args: [
-      request.from,
-      request.to,
-      parseUsdcAmount(request.amountUsdc),
-      BigInt(request.validAfter),
-      BigInt(request.validBefore),
-      request.nonce,
-      Number(parsed.v ?? 27n),
-      parsed.r,
-      parsed.s,
-    ],
+    functionName: 'transfer',
+    args: [request.to, parseUsdcAmount(request.amountUsdc)],
   })
 }

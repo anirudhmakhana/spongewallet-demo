@@ -5,7 +5,7 @@ import { getWallet } from '../../services/walletService'
 
 export const getBalanceTool = {
   name: 'get_balance',
-  description: 'Get the gasless USDC balance of the managed wallet on Base Sepolia',
+  description: 'Get the USDC balance of the sponsored smart account on Base Sepolia',
   inputSchema: {
     type: 'object' as const,
     properties: {},
@@ -21,10 +21,10 @@ export async function getBalanceHandler(
     throw new Error('Wallet not found')
   }
 
-  const balance = await getUsdcBalance(wallet.address as `0x${string}`)
+  const balance = await getUsdcBalance(wallet.smartAccountAddress as `0x${string}`)
 
   return {
-    address: wallet.address,
+    address: wallet.smartAccountAddress,
     chain: 'base-sepolia',
     symbol: 'USDC',
     balanceUsdc: formatUnits(balance, config.usdcDecimals),
