@@ -16,8 +16,6 @@ initDb()
 app.use('/v1', walletsRouter)
 app.use('/v1', paymentsRouter)
 app.use('/', skillsRouter)
-
-// MCP endpoint
 app.post('/mcp', createMcpApp())
 
 app.listen(config.port, () => {

@@ -1,12 +1,11 @@
-import { createPublicClient, http, formatEther } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { formatUnits } from 'viem'
+import { config } from '../../config'
+import { getUsdcBalance } from '../../services/usdcService'
 import { getWallet } from '../../services/walletService'
-
-const publicClient = createPublicClient({ chain: baseSepolia, transport: http() })
 
 export const getBalanceTool = {
   name: 'get_balance',
-  description: 'Get the ETH balance of the managed wallet on Base Sepolia',
+  description: 'Get the gasless USDC balance of the managed wallet on Base Sepolia',
   inputSchema: {
     type: 'object' as const,
     properties: {},
@@ -15,21 +14,19 @@ export const getBalanceTool = {
 }
 
 export async function getBalanceHandler(
-  walletId: string,
-  _args: Record<string, unknown>
-): Promise<{ address: string; chain: string; symbol: string; balanceEth: string }> {
+  walletId: string
+): Promise<{ address: string; chain: string; symbol: string; balanceUsdc: string }> {
   const wallet = getWallet(walletId)
   if (!wallet) {
     throw new Error('Wallet not found')
   }
 
-  const balance = await publicClient.getBalance({ address: wallet.address as `0x${string}` })
-  const balanceEth = formatEther(balance)
+  const balance = await getUsdcBalance(wallet.address as `0x${string}`)
 
   return {
     address: wallet.address,
     chain: 'base-sepolia',
-    symbol: 'ETH',
-    balanceEth,
+    symbol: 'USDC',
+    balanceUsdc: formatUnits(balance, config.usdcDecimals),
   }
 }

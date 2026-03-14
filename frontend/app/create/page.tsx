@@ -23,7 +23,7 @@ export default function CreatePage() {
   const [name, setName] = useState('')
   const [expiresInMs, setExpiresInMs] = useState(24 * 3600 * 1000)
   const [maxTransactions, setMaxTransactions] = useState('10')
-  const [maxAmountPerTxEth, setMaxAmountPerTxEth] = useState('0.01')
+  const [maxAmountPerTxUsdc, setMaxAmountPerTxUsdc] = useState('5.00')
   const [allowedRecipients, setAllowedRecipients] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -52,9 +52,9 @@ export default function CreatePage() {
       return
     }
 
-    const amountVal = parseFloat(maxAmountPerTxEth)
-    if (isNaN(amountVal) || maxAmountPerTxEth.trim() === '') {
-      toast.error('Max amount per transaction must be a valid decimal')
+    const amountVal = parseFloat(maxAmountPerTxUsdc)
+    if (isNaN(amountVal) || maxAmountPerTxUsdc.trim() === '' || !/^\d+(\.\d{1,6})?$/.test(maxAmountPerTxUsdc)) {
+      toast.error('Max amount per transaction must be a valid USDC decimal with up to 6 decimals')
       return
     }
 
@@ -69,7 +69,7 @@ export default function CreatePage() {
           name: name || undefined,
           expiresAt,
           maxTransactions: maxTx,
-          maxAmountPerTxEth,
+          maxAmountPerTxUsdc,
           allowedRecipients: recipients,
         }),
       })
@@ -94,7 +94,7 @@ export default function CreatePage() {
         <CardHeader>
           <CardTitle className="text-white">Create Agent Wallet</CardTitle>
           <CardDescription className="text-gray-400">
-            Generate a managed ETH wallet on Base Sepolia with spending limits
+            Generate a gasless USDC wallet on Base Sepolia with server-enforced limits
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -138,13 +138,13 @@ export default function CreatePage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="maxAmount" className="text-gray-300">Max Amount per Transaction (ETH)</Label>
+            <Label htmlFor="maxAmount" className="text-gray-300">Max Amount per Transaction (USDC)</Label>
             <Input
               id="maxAmount"
               type="text"
-              placeholder="0.01"
-              value={maxAmountPerTxEth}
-              onChange={(e) => setMaxAmountPerTxEth(e.target.value)}
+              placeholder="5.00"
+              value={maxAmountPerTxUsdc}
+              onChange={(e) => setMaxAmountPerTxUsdc(e.target.value)}
               className="bg-gray-800 border-gray-700 text-white"
             />
           </div>

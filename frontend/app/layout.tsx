@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "SpongeWallet",
-  description: "A managed ETH wallet for AI agents on Base Sepolia",
+  description: "A gasless USDC wallet for AI agents on Base Sepolia",
 };
 
 export default function RootLayout({

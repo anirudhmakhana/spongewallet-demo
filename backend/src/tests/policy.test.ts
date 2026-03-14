@@ -1,17 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock dotenv before anything else
-vi.mock('dotenv', () => ({
-  default: { config: vi.fn() },
-  config: vi.fn(),
-}))
-
-// Mock config
 vi.mock('../config', () => ({
   config: {
-    encryptionSecret: 'test-secret-key-that-is-32-chars!!',
-    port: 3001,
-    backendUrl: 'http://localhost:3001',
+    usdcDecimals: 6,
   },
   baseSepolia: {
     id: 84532,
@@ -19,232 +10,268 @@ vi.mock('../config', () => ({
   },
 }))
 
-// Mock viem public client — must be before module imports
-vi.mock('viem', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('viem')>()
-  return {
-    ...actual,
-    createPublicClient: vi.fn(() => ({
-      getBalance: vi.fn().mockResolvedValue(BigInt('1000000000000000000')), // 1 ETH
-    })),
-  }
-})
+vi.mock('../services/walletService', () => ({
+  getWallet: vi.fn(),
+}))
 
-// Mock better-sqlite3
-vi.mock('better-sqlite3', () => {
-  const mockDb = {
-    exec: vi.fn(),
-    prepare: vi.fn(() => ({
-      run: vi.fn(),
-      get: vi.fn(),
-      all: vi.fn(() => []),
-    })),
-    close: vi.fn(),
-  }
-  return { default: vi.fn(() => mockDb) }
-})
+vi.mock('../services/usdcService', () => ({
+  getUsdcBalance: vi.fn(),
+  parseUsdcAmount: (value: string) => {
+    const [whole, fraction = ''] = value.split('.')
+    return BigInt(whole) * 1_000_000n + BigInt((fraction + '000000').slice(0, 6))
+  },
+}))
 
-import bcrypt from 'bcryptjs'
+vi.mock('../db/schema', () => ({
+  db: {
+    prepare: vi.fn(),
+  },
+}))
 
-const FUTURE_EXPIRY = Date.now() + 1000 * 60 * 60 * 24 // 24 hours from now
-const PAST_EXPIRY = Date.now() - 1000 * 60 // 1 minute ago
+const FUTURE_EXPIRY = Date.now() + 1000 * 60 * 60
+const PAST_EXPIRY = Date.now() - 1000 * 60
 
-const TEST_WALLET = {
-  id: 'wallet-1',
-  address: '0xabc123abc123abc123abc123abc123abc123abc1',
-  encryptedPrivateKey: 'iv:tag:encrypted',
-  createdAt: Date.now(),
-}
-
-const TEST_POLICY = {
-  id: 'policy-1',
-  walletId: 'wallet-1',
-  expiresAt: FUTURE_EXPIRY,
-  maxTransactions: 10,
-  remainingTransactions: 5,
-  maxAmountPerTxEth: '0.1',
-  createdAt: Date.now(),
-}
-
-const ALLOWLIST_ENTRIES = [
-  { id: 'entry-1', policyId: 'policy-1', address: '0xrecipient123456789012345678901234567890' },
-]
-
-// We need to control db mock per-test, so we mock the module with factory
-vi.mock('../db/schema', () => {
-  const mockPrepare = vi.fn(() => ({
-    run: vi.fn(),
-    get: vi.fn(),
-    all: vi.fn(() => []),
-  }))
-  return {
-    db: {
-      prepare: mockPrepare,
-      exec: vi.fn(),
-    },
-    initDb: vi.fn(),
-  }
-})
-
-describe('Policy Validation (validatePaymentRequest)', () => {
-  const VALID_RECIPIENT = '0xrecipient123456789012345678901234567890'
-  const INVALID_RECIPIENT = '0xdeadbeef1234567890abcdef1234567890abcd01'
-
-  async function buildApiKeyRows(apiKey: string) {
-    const hash = await bcrypt.hash(apiKey, 10)
-    return [{ id: 'key-1', walletId: 'wallet-1', keyHash: hash, createdAt: Date.now() }]
-  }
-
-  async function setupMocksAndImport({
-    apiKeyRows,
-    walletRow,
-    policyRow,
-    allowlistRows,
-  }: {
-    apiKeyRows: object[]
-    walletRow: object | undefined
-    policyRow: object | undefined
-    allowlistRows: object[]
-  }) {
-    const { db } = await import('../db/schema')
-    const mockPrepare = db.prepare as ReturnType<typeof vi.fn>
-
-    mockPrepare.mockImplementation((sql: string) => {
-      if (sql.includes('SELECT * FROM api_keys WHERE walletId')) {
-        return { all: vi.fn(() => apiKeyRows), run: vi.fn(), get: vi.fn() }
-      }
-      if (sql.includes('SELECT * FROM wallets WHERE id')) {
-        return { get: vi.fn(() => walletRow), run: vi.fn(), all: vi.fn(() => []) }
-      }
-      if (sql.includes('SELECT * FROM policies WHERE walletId')) {
-        return { get: vi.fn(() => policyRow), run: vi.fn(), all: vi.fn(() => []) }
-      }
-      if (sql.includes('SELECT * FROM allowlist_entries WHERE policyId')) {
-        return { all: vi.fn(() => allowlistRows), run: vi.fn(), get: vi.fn() }
-      }
-      return { run: vi.fn(), get: vi.fn(), all: vi.fn(() => []) }
-    })
-  }
-
+describe('Policy Validation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('should reject invalid API key (step 1)', async () => {
-    const validApiKey = 'correct-api-key-for-wallet'
-    const wrongApiKey = 'wrong-api-key-completely-different'
-    const apiKeyRows = await buildApiKeyRows(validApiKey)
+  async function setupMocks({
+    wallet,
+    policy,
+    allowlist,
+    balance,
+  }: {
+    wallet: object | null
+    policy: object | null
+    allowlist: object[]
+    balance: bigint
+  }) {
+    const { getWallet } = await import('../services/walletService')
+    const { getUsdcBalance } = await import('../services/usdcService')
+    const { db } = await import('../db/schema')
 
-    await setupMocksAndImport({
-      apiKeyRows,
-      walletRow: TEST_WALLET,
-      policyRow: TEST_POLICY,
-      allowlistRows: ALLOWLIST_ENTRIES,
+    vi.mocked(getWallet).mockReturnValue(wallet as never)
+    vi.mocked(getUsdcBalance).mockResolvedValue(balance)
+
+    const prepareMock = db.prepare as ReturnType<typeof vi.fn>
+    prepareMock.mockImplementation((sql: string) => {
+      if (sql.includes('SELECT * FROM policies WHERE walletId')) {
+        return { get: vi.fn(() => policy) }
+      }
+
+      if (sql.includes('SELECT * FROM allowlist_entries WHERE policyId')) {
+        return { all: vi.fn(() => allowlist) }
+      }
+
+      return { get: vi.fn(), all: vi.fn(() => []), run: vi.fn() }
+    })
+  }
+
+  it('rejects expired policies', async () => {
+    await setupMocks({
+      wallet: {
+        id: 'wallet-1',
+        address: '0x1234567890123456789012345678901234567890',
+        turnkeyWalletId: 'tk-wallet',
+        turnkeyAccountId: 'tk-account',
+        createdAt: Date.now(),
+      },
+      policy: {
+        id: 'policy-1',
+        walletId: 'wallet-1',
+        expiresAt: PAST_EXPIRY,
+        maxTransactions: 10,
+        remainingTransactions: 10,
+        maxAmountPerTxUsdc: '5',
+        createdAt: Date.now(),
+      },
+      allowlist: [{ address: '0xabc0000000000000000000000000000000000000' }],
+      balance: 10_000_000n,
     })
 
     const { validatePaymentRequest } = await import('../services/policyService')
-    const result = await validatePaymentRequest(wrongApiKey, 'wallet-1', VALID_RECIPIENT, '0.01')
-    expect(result.valid).toBe(false)
-    if (!result.valid) {
-      expect(result.error).toContain('Invalid API key')
-    }
-  })
+    const result = await validatePaymentRequest(
+      'wallet-1',
+      '0xabc0000000000000000000000000000000000000',
+      '1'
+    )
 
-  it('should reject expired policy (step 3)', async () => {
-    const apiKey = 'valid-api-key-for-test-12345678'
-    const apiKeyRows = await buildApiKeyRows(apiKey)
-    const expiredPolicy = { ...TEST_POLICY, expiresAt: PAST_EXPIRY }
-
-    await setupMocksAndImport({
-      apiKeyRows,
-      walletRow: TEST_WALLET,
-      policyRow: expiredPolicy,
-      allowlistRows: ALLOWLIST_ENTRIES,
-    })
-
-    const { validatePaymentRequest } = await import('../services/policyService')
-    const result = await validatePaymentRequest(apiKey, 'wallet-1', VALID_RECIPIENT, '0.01')
     expect(result.valid).toBe(false)
     if (!result.valid) {
       expect(result.error).toContain('expired')
     }
   })
 
-  it('should reject when zero remaining transactions (step 4)', async () => {
-    const apiKey = 'valid-api-key-for-test-12345678'
-    const apiKeyRows = await buildApiKeyRows(apiKey)
-    const depletedPolicy = { ...TEST_POLICY, remainingTransactions: 0 }
-
-    await setupMocksAndImport({
-      apiKeyRows,
-      walletRow: TEST_WALLET,
-      policyRow: depletedPolicy,
-      allowlistRows: ALLOWLIST_ENTRIES,
+  it('rejects exhausted transaction counts', async () => {
+    await setupMocks({
+      wallet: {
+        id: 'wallet-1',
+        address: '0x1234567890123456789012345678901234567890',
+        turnkeyWalletId: 'tk-wallet',
+        turnkeyAccountId: 'tk-account',
+        createdAt: Date.now(),
+      },
+      policy: {
+        id: 'policy-1',
+        walletId: 'wallet-1',
+        expiresAt: FUTURE_EXPIRY,
+        maxTransactions: 10,
+        remainingTransactions: 0,
+        maxAmountPerTxUsdc: '5',
+        createdAt: Date.now(),
+      },
+      allowlist: [{ address: '0xabc0000000000000000000000000000000000000' }],
+      balance: 10_000_000n,
     })
 
     const { validatePaymentRequest } = await import('../services/policyService')
-    const result = await validatePaymentRequest(apiKey, 'wallet-1', VALID_RECIPIENT, '0.01')
+    const result = await validatePaymentRequest(
+      'wallet-1',
+      '0xabc0000000000000000000000000000000000000',
+      '1'
+    )
+
     expect(result.valid).toBe(false)
     if (!result.valid) {
       expect(result.error).toContain('remaining transactions')
     }
   })
 
-  it('should reject non-allowlisted recipient address (step 5)', async () => {
-    const apiKey = 'valid-api-key-for-test-12345678'
-    const apiKeyRows = await buildApiKeyRows(apiKey)
-
-    await setupMocksAndImport({
-      apiKeyRows,
-      walletRow: TEST_WALLET,
-      policyRow: TEST_POLICY,
-      allowlistRows: ALLOWLIST_ENTRIES,
+  it('rejects recipients outside the allowlist', async () => {
+    await setupMocks({
+      wallet: {
+        id: 'wallet-1',
+        address: '0x1234567890123456789012345678901234567890',
+        turnkeyWalletId: 'tk-wallet',
+        turnkeyAccountId: 'tk-account',
+        createdAt: Date.now(),
+      },
+      policy: {
+        id: 'policy-1',
+        walletId: 'wallet-1',
+        expiresAt: FUTURE_EXPIRY,
+        maxTransactions: 10,
+        remainingTransactions: 10,
+        maxAmountPerTxUsdc: '5',
+        createdAt: Date.now(),
+      },
+      allowlist: [{ address: '0xabc0000000000000000000000000000000000000' }],
+      balance: 10_000_000n,
     })
 
     const { validatePaymentRequest } = await import('../services/policyService')
-    const result = await validatePaymentRequest(apiKey, 'wallet-1', INVALID_RECIPIENT, '0.01')
+    const result = await validatePaymentRequest(
+      'wallet-1',
+      '0xdef0000000000000000000000000000000000000',
+      '1'
+    )
+
     expect(result.valid).toBe(false)
     if (!result.valid) {
       expect(result.error).toContain('allowlist')
     }
   })
 
-  it('should reject amount exceeding max per transaction (step 6)', async () => {
-    const apiKey = 'valid-api-key-for-test-12345678'
-    const apiKeyRows = await buildApiKeyRows(apiKey)
-
-    await setupMocksAndImport({
-      apiKeyRows,
-      walletRow: TEST_WALLET,
-      policyRow: TEST_POLICY, // maxAmountPerTxEth: "0.1"
-      allowlistRows: ALLOWLIST_ENTRIES,
+  it('rejects amounts above the per-transaction USDC ceiling', async () => {
+    await setupMocks({
+      wallet: {
+        id: 'wallet-1',
+        address: '0x1234567890123456789012345678901234567890',
+        turnkeyWalletId: 'tk-wallet',
+        turnkeyAccountId: 'tk-account',
+        createdAt: Date.now(),
+      },
+      policy: {
+        id: 'policy-1',
+        walletId: 'wallet-1',
+        expiresAt: FUTURE_EXPIRY,
+        maxTransactions: 10,
+        remainingTransactions: 10,
+        maxAmountPerTxUsdc: '5',
+        createdAt: Date.now(),
+      },
+      allowlist: [{ address: '0xabc0000000000000000000000000000000000000' }],
+      balance: 10_000_000n,
     })
 
     const { validatePaymentRequest } = await import('../services/policyService')
-    const result = await validatePaymentRequest(apiKey, 'wallet-1', VALID_RECIPIENT, '0.5') // over limit
+    const result = await validatePaymentRequest(
+      'wallet-1',
+      '0xabc0000000000000000000000000000000000000',
+      '10'
+    )
+
     expect(result.valid).toBe(false)
     if (!result.valid) {
       expect(result.error).toContain('exceeds maximum')
     }
   })
 
-  it('should pass all checks for a valid payment request', async () => {
-    const apiKey = 'valid-api-key-for-test-12345678'
-    const apiKeyRows = await buildApiKeyRows(apiKey)
-
-    await setupMocksAndImport({
-      apiKeyRows,
-      walletRow: TEST_WALLET,
-      policyRow: TEST_POLICY,
-      allowlistRows: ALLOWLIST_ENTRIES,
+  it('rejects insufficient USDC balance', async () => {
+    await setupMocks({
+      wallet: {
+        id: 'wallet-1',
+        address: '0x1234567890123456789012345678901234567890',
+        turnkeyWalletId: 'tk-wallet',
+        turnkeyAccountId: 'tk-account',
+        createdAt: Date.now(),
+      },
+      policy: {
+        id: 'policy-1',
+        walletId: 'wallet-1',
+        expiresAt: FUTURE_EXPIRY,
+        maxTransactions: 10,
+        remainingTransactions: 10,
+        maxAmountPerTxUsdc: '5',
+        createdAt: Date.now(),
+      },
+      allowlist: [{ address: '0xabc0000000000000000000000000000000000000' }],
+      balance: 500_000n,
     })
 
     const { validatePaymentRequest } = await import('../services/policyService')
-    const result = await validatePaymentRequest(apiKey, 'wallet-1', VALID_RECIPIENT, '0.01')
-    expect(result.valid).toBe(true)
-    if (result.valid) {
-      expect(result.wallet).toBeDefined()
-      expect(result.policy).toBeDefined()
+    const result = await validatePaymentRequest(
+      'wallet-1',
+      '0xabc0000000000000000000000000000000000000',
+      '1'
+    )
+
+    expect(result.valid).toBe(false)
+    if (!result.valid) {
+      expect(result.error).toContain('Insufficient USDC balance')
     }
+  })
+
+  it('passes for a valid gasless USDC payment request', async () => {
+    await setupMocks({
+      wallet: {
+        id: 'wallet-1',
+        address: '0x1234567890123456789012345678901234567890',
+        turnkeyWalletId: 'tk-wallet',
+        turnkeyAccountId: 'tk-account',
+        createdAt: Date.now(),
+      },
+      policy: {
+        id: 'policy-1',
+        walletId: 'wallet-1',
+        expiresAt: FUTURE_EXPIRY,
+        maxTransactions: 10,
+        remainingTransactions: 10,
+        maxAmountPerTxUsdc: '5',
+        createdAt: Date.now(),
+      },
+      allowlist: [{ address: '0xabc0000000000000000000000000000000000000' }],
+      balance: 10_000_000n,
+    })
+
+    const { validatePaymentRequest } = await import('../services/policyService')
+    const result = await validatePaymentRequest(
+      'wallet-1',
+      '0xabc0000000000000000000000000000000000000',
+      '1.25'
+    )
+
+    expect(result.valid).toBe(true)
   })
 })

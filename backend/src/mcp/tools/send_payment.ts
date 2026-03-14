@@ -1,10 +1,9 @@
-import { validatePaymentRequest, decrementRemainingTransactions, recordTransaction } from '../../services/policyService'
-import { decryptPrivateKey } from '../../services/walletService'
-import { sendPayment } from '../../services/paymentService'
+import { getAddress } from 'viem'
+import { sendUsdcPayment } from '../../services/paymentService'
 
 export const sendPaymentTool = {
   name: 'send_payment',
-  description: 'Send ETH to an address on Base Sepolia, subject to policy limits',
+  description: 'Send gasless USDC to an address on Base Sepolia, subject to policy limits',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -12,49 +11,28 @@ export const sendPaymentTool = {
         type: 'string',
         description: 'Recipient Ethereum address (0x...)',
       },
-      amountEth: {
+      amountUsdc: {
         type: 'string',
-        description: 'Amount to send in ETH (e.g. "0.001")',
+        description: 'Amount to send in USDC, up to 6 decimals (e.g. "5.25")',
       },
     },
-    required: ['to', 'amountEth'],
+    required: ['to', 'amountUsdc'],
   },
 }
 
 export async function sendPaymentHandler(
   walletId: string,
-  apiKey: string,
-  args: { to: string; amountEth: string }
+  args: { to: string; amountUsdc: string }
 ): Promise<{ txHash: string; explorerUrl: string; remainingTransactions: number }> {
-  const { to, amountEth } = args
+  const { to, amountUsdc } = args
 
-  // Validate address format
   if (!/^0x[0-9a-fA-F]{40}$/.test(to)) {
     throw new Error('Invalid recipient address format')
   }
 
-  // Validate amount format
-  if (!/^\d+(\.\d+)?$/.test(amountEth)) {
-    throw new Error('Invalid amount format')
+  if (!/^\d+(\.\d{1,6})?$/.test(amountUsdc)) {
+    throw new Error('amountUsdc must be a valid USDC decimal string with up to 6 decimals')
   }
 
-  const validation = await validatePaymentRequest(apiKey, walletId, to, amountEth)
-
-  if (!validation.valid) {
-    throw new Error(validation.error)
-  }
-
-  const { wallet, policy } = validation
-
-  // Decrypt private key and send payment
-  const decryptedKey = decryptPrivateKey(wallet.encryptedPrivateKey)
-  const { txHash, explorerUrl } = await sendPayment(decryptedKey, to, amountEth)
-
-  // Record transaction
-  recordTransaction(walletId, txHash, to, amountEth)
-
-  // Decrement remaining transactions
-  const remainingTransactions = decrementRemainingTransactions(policy.id)
-
-  return { txHash, explorerUrl, remainingTransactions }
+  return sendUsdcPayment(walletId, getAddress(to), amountUsdc)
 }

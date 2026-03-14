@@ -2,19 +2,30 @@ import Database from 'better-sqlite3'
 import path from 'path'
 
 const DB_PATH = path.join(__dirname, '../../spongewallet.db')
+const SCHEMA_VERSION = 2
 
 export const db = new Database(DB_PATH)
 
-export function initDb(): void {
+function recreateSchema(): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS wallets (
+    PRAGMA foreign_keys = OFF;
+
+    DROP TABLE IF EXISTS authorizations;
+    DROP TABLE IF EXISTS transactions;
+    DROP TABLE IF EXISTS allowlist_entries;
+    DROP TABLE IF EXISTS policies;
+    DROP TABLE IF EXISTS api_keys;
+    DROP TABLE IF EXISTS wallets;
+
+    CREATE TABLE wallets (
       id TEXT PRIMARY KEY,
       address TEXT NOT NULL,
-      encryptedPrivateKey TEXT NOT NULL,
+      turnkeyWalletId TEXT NOT NULL,
+      turnkeyAccountId TEXT NOT NULL,
       createdAt INTEGER NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS api_keys (
+    CREATE TABLE api_keys (
       id TEXT PRIMARY KEY,
       walletId TEXT NOT NULL,
       keyHash TEXT NOT NULL,
@@ -22,34 +33,63 @@ export function initDb(): void {
       FOREIGN KEY(walletId) REFERENCES wallets(id)
     );
 
-    CREATE TABLE IF NOT EXISTS policies (
+    CREATE TABLE policies (
       id TEXT PRIMARY KEY,
       walletId TEXT NOT NULL,
       expiresAt INTEGER NOT NULL,
       maxTransactions INTEGER NOT NULL,
       remainingTransactions INTEGER NOT NULL,
-      maxAmountPerTxEth TEXT NOT NULL,
+      maxAmountPerTxUsdc TEXT NOT NULL,
       createdAt INTEGER NOT NULL,
       FOREIGN KEY(walletId) REFERENCES wallets(id)
     );
 
-    CREATE TABLE IF NOT EXISTS allowlist_entries (
+    CREATE TABLE allowlist_entries (
       id TEXT PRIMARY KEY,
       policyId TEXT NOT NULL,
       address TEXT NOT NULL,
       FOREIGN KEY(policyId) REFERENCES policies(id)
     );
 
-    CREATE TABLE IF NOT EXISTS transactions (
+    CREATE TABLE authorizations (
+      id TEXT PRIMARY KEY,
+      walletId TEXT NOT NULL,
+      nonce TEXT NOT NULL,
+      toAddress TEXT NOT NULL,
+      amountUsdc TEXT NOT NULL,
+      validAfter INTEGER NOT NULL,
+      validBefore INTEGER NOT NULL,
+      gelatoTaskId TEXT,
+      status TEXT NOT NULL,
+      txHash TEXT,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL,
+      FOREIGN KEY(walletId) REFERENCES wallets(id)
+    );
+
+    CREATE TABLE transactions (
       id TEXT PRIMARY KEY,
       walletId TEXT NOT NULL,
       txHash TEXT NOT NULL,
       toAddress TEXT NOT NULL,
-      amountEth TEXT NOT NULL,
+      amountUsdc TEXT NOT NULL,
       sentAt INTEGER NOT NULL,
       FOREIGN KEY(walletId) REFERENCES wallets(id)
     );
+
+    PRAGMA user_version = 2;
+    PRAGMA foreign_keys = ON;
   `)
+}
+
+export function initDb(): void {
+  const version = db.pragma('user_version', { simple: true }) as number
+
+  if (version !== SCHEMA_VERSION) {
+    recreateSchema()
+  } else {
+    db.pragma('foreign_keys = ON')
+  }
 
   console.log('Database initialized')
 }

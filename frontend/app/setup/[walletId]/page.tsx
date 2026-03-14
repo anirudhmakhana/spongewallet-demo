@@ -11,7 +11,7 @@ interface Policy {
   expiresAt: number
   maxTransactions: number
   remainingTransactions: number
-  maxAmountPerTxEth: string
+  maxAmountPerTxUsdc: string
   allowedRecipients: string[]
 }
 
@@ -44,14 +44,17 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
 
 export default function SetupPage({ params }: { params: Promise<{ walletId: string }> }) {
   const { walletId } = use(params)
-  const [apiKey, setApiKey] = useState<string | null>(null)
+  const [apiKey] = useState<string | null>(() => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+
+    return window.sessionStorage.getItem(`apiKey_${walletId}`)
+  })
   const [walletData, setWalletData] = useState<WalletData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const storedKey = sessionStorage.getItem(`apiKey_${walletId}`)
-    setApiKey(storedKey)
-
     fetch(`${BACKEND_URL}/v1/wallets/${walletId}`)
       .then((r) => r.json())
       .then((data) => setWalletData(data))
@@ -60,7 +63,7 @@ export default function SetupPage({ params }: { params: Promise<{ walletId: stri
   }, [walletId])
 
   const claudeCommand = `claude mcp add --transport http spongewallet ${BACKEND_URL}/mcp --header "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}"`
-  const skillUrl = `${BACKEND_URL}/skills/openclaw.md?walletId=${walletId}&apiKey=${apiKey || 'YOUR_API_KEY'}`
+  const skillUrl = `${BACKEND_URL}/skills/openclaw.md?walletId=${walletId}`
   const openclawCommand = `/install ${skillUrl}`
 
   if (loading) {
@@ -76,7 +79,7 @@ export default function SetupPage({ params }: { params: Promise<{ walletId: stri
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">SpongeWallet Setup</h1>
-          <p className="text-gray-400 mt-2">Your agent wallet is ready</p>
+          <p className="text-gray-400 mt-2">Your gasless USDC agent wallet is ready</p>
         </div>
 
         {/* Yellow warning banner */}
@@ -99,10 +102,14 @@ export default function SetupPage({ params }: { params: Promise<{ walletId: stri
                   </code>
                   <CopyButton text={apiKey} />
                 </div>
-                <p className="text-gray-500 text-sm">This key will not be shown again after you leave this page.</p>
+                <p className="text-gray-500 text-sm">
+                  Save this key now. You can restore this wallet later from the home page by pasting the saved API key.
+                </p>
               </>
             ) : (
-              <p className="text-yellow-400 text-sm">⚠️ API key not found in session. Please go back and regenerate.</p>
+              <p className="text-yellow-400 text-sm">
+                API key not found in this browser session. Go back to the home page and use Restore Existing Wallet with your saved API key.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -147,6 +154,7 @@ export default function SetupPage({ params }: { params: Promise<{ walletId: stri
               </code>
               <CopyButton text={openclawCommand} />
             </div>
+            <p className="text-gray-500 text-sm">Set <code className="font-mono">SPONGEWALLET_API_KEY</code> in OpenClaw before using the skill.</p>
           </CardContent>
         </Card>
 
@@ -172,6 +180,10 @@ export default function SetupPage({ params }: { params: Promise<{ walletId: stri
               >
                 View on Basescan →
               </a>
+              <div className="text-sm text-gray-400 space-y-1">
+                <p>Deposit Base Sepolia USDC to this address.</p>
+                <p>The wallet does not need ETH. Gelato sponsors gas for transfers.</p>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -193,8 +205,8 @@ export default function SetupPage({ params }: { params: Promise<{ walletId: stri
                   <p className="text-white">{walletData.policy.remainingTransactions}</p>
                 </div>
                 <div>
-                  <span className="text-gray-400">Max per Tx ETH</span>
-                  <p className="text-white">{walletData.policy.maxAmountPerTxEth} ETH</p>
+                  <span className="text-gray-400">Max per Tx USDC</span>
+                  <p className="text-white">{walletData.policy.maxAmountPerTxUsdc} USDC</p>
                 </div>
               </div>
               <div>
