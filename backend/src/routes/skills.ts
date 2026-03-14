@@ -28,46 +28,106 @@ router.get('/skills/openclaw.md', (req: Request, res: Response): void => {
 
     const skillContent = `---
 name: spongewallet
-version: 2.0.0
-description: Gasless USDC wallet on Base Sepolia. Uses Turnkey for signing and Gelato for sponsored relay submission.
+version: 2.1.0
+description: Gasless USDC wallet for AI agents on Base Sepolia with strict spending-policy enforcement.
 homepage: ${config.backendUrl}
 user-invocable: true
 metadata: {"openclaw":{"emoji":"🧽","category":"finance","primaryEnv":"SPONGEWALLET_API_KEY","requires":{"env":["SPONGEWALLET_API_KEY"]}}}
 ---
 
-SPONGEWALLET QUICK REFERENCE
-Base: ${config.backendUrl}
-Auth: Authorization: Bearer <SPONGEWALLET_API_KEY>
-Asset: USDC only
-Chain: Base Sepolia (84532)
-Execution: Turnkey signs transferWithAuthorization, Gelato sponsors gas
+\`\`\`
+SPONGEWALLET AGENT GUIDE
+Base:   ${config.backendUrl}
+Auth:   Authorization: Bearer <SPONGEWALLET_API_KEY>
+Asset:  USDC only
+Chain:  Base Sepolia (84532)
+Wallet: ${wallet.address}
+
+Execution model:
+- Turnkey signs USDC transfer authorizations
+- Gelato submits the transaction and sponsors gas
+- Policy checks happen before any signing attempt
+
+Primary interface:
+- MCP first
+- REST as fallback
+\`\`\`
+
+# SpongeWallet Skill
+
+This skill is **doc-only**. There is no local CLI. The agent should use the SpongeWallet MCP server when available, and use the REST API only as a fallback.
+
+## What this wallet can do
+
+1. Check the wallet's current USDC balance on Base Sepolia
+2. Send gasless USDC to approved recipient addresses
+3. View recent transaction history
 
 ## Claude Code Setup
+
+\`\`\`bash
 claude mcp add --transport http spongewallet ${config.backendUrl}/mcp --header "Authorization: Bearer <SPONGEWALLET_API_KEY>"
+\`\`\`
 
 ## MCP Tools
-get_balance → { address, chain, symbol, balanceUsdc }
-send_payment(to, amountUsdc) → { txHash, explorerUrl, remainingTransactions }
-get_transaction_history(limit?) → { items: [{txHash, toAddress, amountUsdc, sentAt, explorerUrl}] }
 
-## REST API (alternative to MCP)
-GET  /v1/balance          Authorization: Bearer <SPONGEWALLET_API_KEY>
-POST /v1/payments         { "to": "0x...", "amountUsdc": "5.25" }
-GET  /v1/transactions     ?limit=10
+- \`get_balance\` -> returns \`{ address, chain, symbol, balanceUsdc }\`
+- \`send_payment(to, amountUsdc)\` -> returns \`{ txHash, explorerUrl, remainingTransactions }\`
+- \`get_transaction_history(limit?)\` -> returns recent transfer records
 
-## Wallet Policy
-- Wallet: ${wallet.address}
-- Expires: ${new Date(policy.expiresAt).toISOString()}
-- Remaining transactions: ${policy.remainingTransactions}
-- Max per transaction: ${policy.maxAmountPerTxUsdc} USDC
-- Allowed recipients: ${policy.allowedRecipients.join(', ')}
+## REST API Fallback
 
-## Rules
-1. Always call get_balance before sending
-2. Only send USDC to allowed recipients
-3. Never exceed the USDC limit
-4. The wallet does not need ETH; Gelato sponsors gas
-5. Report txHash + explorerUrl after each successful send
+Use REST only if MCP is unavailable.
+
+- \`GET ${config.backendUrl}/v1/balance\`
+- \`POST ${config.backendUrl}/v1/payments\` with \`{ "to": "0x...", "amountUsdc": "0.01" }\`
+- \`GET ${config.backendUrl}/v1/transactions?limit=10\`
+
+## Wallet Policy Snapshot
+
+- Wallet address: \`${wallet.address}\`
+- Expires at: \`${new Date(policy.expiresAt).toISOString()}\`
+- Remaining transactions: \`${policy.remainingTransactions}\`
+- Max per transaction: \`${policy.maxAmountPerTxUsdc} USDC\`
+- Allowed recipients:
+${policy.allowedRecipients.map((address) => `  - \`${address}\``).join('\n')}
+
+## Required Agent Behavior
+
+1. Always check the balance before attempting a transfer
+2. Only send to addresses listed in the allowed-recipient policy
+3. Never exceed the per-transaction USDC limit
+4. Treat policy rejection as final unless the human updates the policy
+5. After a successful send, report:
+   - amount sent
+   - recipient
+   - txHash
+   - explorerUrl
+   - remaining transaction count
+
+## Recommended Send Workflow
+
+1. Call \`get_balance\`
+2. Confirm the requested recipient is in the allowed list
+3. Confirm the requested amount is within policy
+4. Call \`send_payment\`
+5. Report the result clearly
+
+## Error Guide
+
+- \`401 Unauthorized\` -> API key is missing, invalid, or expired
+- \`400 Policy has expired\` -> wallet can no longer transact under the current policy
+- \`400 No remaining transactions in policy\` -> transaction count has been exhausted
+- \`400 Recipient ... is not in the allowlist\` -> recipient is not approved
+- \`400 Amount ... exceeds maximum per transaction limit\` -> amount is above policy
+- \`400 Insufficient USDC balance\` -> fund the wallet with more Base Sepolia USDC
+- \`429\` from Gelato -> relay quota or compute budget is exhausted
+
+## Notes
+
+- This wallet does not need ETH for gas; Gelato sponsors gas for supported sends
+- This skill should never invent unsupported capabilities such as swaps, bridges, or non-USDC transfers
+- If the owner already has an API key, they can restore the wallet from the SpongeWallet home page using that saved key
 `
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
